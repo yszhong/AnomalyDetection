@@ -1,0 +1,12 @@
+# Repositories:
+data
+result
+
+# Windows:
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# My config:
+zhong.pem
+id_rsa
