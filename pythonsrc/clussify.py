@@ -22,13 +22,13 @@ def kmc(D, k):
 def loadmetri():
     pts = []
     metri = []
-    f = open("../data/all-good-dip-newest.txt", "r")
+    f = open("../data/new-good.txt", "r")
     for line in f:
         line = line.strip().split()
         pts.append(line[0])
         line = line[1:]
         metri.append(line)
-    f = open("../data/all-bad-dip-newest.txt", "r")
+    f = open("../data/new-bad.txt", "r")
     for line in f:
         line = line.strip().split()
         pts.append(line[0])
@@ -49,7 +49,7 @@ def rfc(M, label):
     importance = rf.feature_importances_
     return importance
 
-def validate(label, truth, M, cluster_width = 10, threshold = 0.01):
+def validate(label, truth, M, cluster_width = 10, threshold = 0.1):
     cldict = dict()
     result = numpy.array([[0.0, 0.0], [0.0, 0.0]])
     i = 0
@@ -68,15 +68,16 @@ def validate(label, truth, M, cluster_width = 10, threshold = 0.01):
                 flag = True
             if flag:
                 if truth[thing]:
-                    result[0, 1] += 1
-                if not truth[thing]:
                     result[0, 0] += 1
+                if not truth[thing]:
+                    result[0, 1] += 1
             if not flag:
                 if truth[thing]:
-                    result[1, 1] += 1
-                if not truth[thing]:
                     result[1, 0] += 1
-    return result
+                if not truth[thing]:
+                    result[1, 1] += 1
+    F, A = anomindexes(result)
+    return result, F, A
 
 def bidistance(item, group, matrix):
     item = matrix[item]
@@ -87,6 +88,17 @@ def bidistance(item, group, matrix):
     average = numpy.mean(m, axis = 0)
     distance = numpy.linalg.norm(item - average)
     return distance
+
+def anomindexes(emat):
+    TP = emat[0][0]
+    FP = emat[0][1]
+    FN = emat[1][0]
+    TN = emat[1][1]
+    P = TP / (TP + FP)
+    R = TP / (TP + FN)
+    F = 2 * P * R / (P + R)
+    Acc = (TP + FN) / (TP + TN + FP + FN)
+    return F, Acc
 
 def integrate1():
     pts, M = loadmetri()
@@ -100,18 +112,18 @@ def integrate1():
         N.append(outer)
     label = kmc(N, 90)
     label = numpy.array(label)
-    truth = numpy.zeros(2427)
-    truth = numpy.concatenate((truth, numpy.ones(8074)), axis = 0)
-    vl = validate(label, truth, N)
-    return vl
+    truth = numpy.ones(2427)
+    truth = numpy.concatenate((truth, numpy.zeros(8074)), axis = 0)
+    vl, F, A = validate(label, truth, N)
+    return vl, importance, F, A
 
 def integrate2():
     pts, M = loadmetri()
-    truth = numpy.zeros(2427)
-    truth = numpy.concatenate((truth, numpy.ones(8074)), axis = 0)
+    truth = numpy.ones(2427)
+    truth = numpy.concatenate((truth, numpy.zeros(8074)), axis = 0)
     pd = []
     pdlabel = []
-    randlist = random.sample(range(10501), 2000)
+    randlist = random.sample(range(10501), 5000)
     for i in randlist:
         pd.append(M[i])
         if i < 2427:
@@ -151,23 +163,56 @@ def integrate2():
         a = rf[label[i]].predict(pd[i].reshape(1, -1))
         a = 1 if a[0] > 0.5 else 0
         belief.append(a)
-    label = validate(belief, pdlabel, pd, threshold = 0.5)
-    return label
+    label, F, A = validate(belief, pdlabel, pd, threshold = 10)
+    return label, F, A
+
+def baseline():
+    pts, M = loadmetri()
+    truth = numpy.ones(2427)
+    truth = numpy.concatenate((truth, numpy.zeros(8074)), axis = 0)
+    pd = []
+    pdlabel = []
+    randlist = random.sample(range(10501), 5000)
+    for i in randlist:
+        pd.append(M[i])
+        if i < 2427:
+            pdlabel.append([1])
+        else:
+            pdlabel.append([0])
+    M = numpy.delete(M, randlist, axis = 0)
+    truth = numpy.delete(truth, randlist)
+    pdlabel = numpy.array(pdlabel)
+    rf = ensemble.RandomForestClassifier()
+    rf.fit(M, truth)
+    belief = []
+    for i in range(len(pdlabel)):
+        a = rf.predict(pd[i].reshape(1, -1))
+        a = 1 if a > 0.5 else 0
+        belief.append(a)
+    label, F, A = validate(belief, pdlabel, pd, threshold = 10)
+    return label, F, A
 
 if __name__ == "__main__":
     print "Started."
     start = time.clock()
-    label = integrate1()
+    label, F, A = baseline()
     end = time.clock()
     T = end - start
     print "Time cost: " + str(T) + " seconds."
-    print str(label)
+    print "Baseline Rate: " + str(label) + "\n" + str(F) + "\n" + str(A)
     start = time.clock()
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        label = integrate2()
+    label, importance, F, A = integrate1()
     end = time.clock()
     T = end - start
     print "Time cost: " + str(T) + " seconds."
-    print str(label)
+    print "WeightBased Rate: " + str(label) + "\n" + str(F) + "\n" + str(A)
+    print "Importance: " + str(importance)
+    start = time.clock()
+    #with warnings.catch_warnings():
+    #warnings.simplefilter("error")
+    label, F, A = integrate2()
+    end = time.clock()
+    T = end - start
+    print "Time cost: " + str(T) + " seconds."
+    print "ClusterBased Rate:" + str(label) + "\n" + str(F) + "\n" + str(A)
     print "Succeed!"
