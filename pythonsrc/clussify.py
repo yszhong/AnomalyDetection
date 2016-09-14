@@ -14,6 +14,7 @@ import random
 import time
 import warnings
 import sys
+import logging
 
 def afc(D):
     af = cluster.AffinityPropagation()
@@ -57,7 +58,7 @@ def rfc(M, label):
     importance = rf.feature_importances_
     return importance
 
-def validate(label, truth, M, cluster_width = 10, threshold = 2):
+def validate(label, truth, M, cluster_width, threshold):
     # Verify the clustering accuracy
     cldict = dict()
     result = numpy.array([[0.0, 0.0], [0.0, 0.0]])
@@ -155,7 +156,8 @@ def integrate2(nc, cw, th, pc = 0.5):
     truth = numpy.concatenate((truth, numpy.zeros(8074)), axis = 0)
     pd = []
     pdlabel = []
-    randlist = random.sample(range(10501), 5250)
+    randlist = random.sample(range(2427), 500)
+    randlist += random.sample(range(8074), 2000)
     for i in randlist:
         pd.append(M[i])
         if i < 2427:
@@ -206,7 +208,8 @@ def baseline1(cw, th, pc = 0.5):
     truth = numpy.concatenate((truth, numpy.zeros(8074)), axis = 0)
     pd = []
     pdlabel = []
-    randlist = random.sample(range(10501), 5250)
+    randlist = random.sample(range(2427), 500)
+    randlist += random.sample(range(8074), 2000)
     for i in randlist:
         pd.append(M[i])
         if i < 2427:
@@ -239,10 +242,19 @@ def baseline2():
 
 if __name__ == "__main__":
     print "Started."
+    logging.basicConfig(level = logging.INFO, 
+                        format = "$(asctime)s %(filename)s[line:%(lineno)d %(levelname)s %(message)s]",
+                        datefmt = "%b %d %Y %H:%M:%S",
+                        filename = "../result/clussify.txt",
+                        filemode = "w")
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
+    console.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+    logging.getLogger("").addHandler(console)
     nc = 100
-    cw = 10
-    th = 0.1
-    pc = 0.7
+    cw = 3
+    th = 1E-4
+    pc = 0.5
     if len(sys.argv) > 1:
         nc = int(sys.argv[1])
     if len(sys.argv) > 2:
@@ -251,38 +263,38 @@ if __name__ == "__main__":
         th = float(sys.argv[3])
     if len(sys.argv) > 4:
         pc = float(sys.argv[4])
-    #"""
-    print "Start AP."
+    """
+    logging.info("Start AP.")
     start = time.clock()
     label = baseline2()
     end = time.clock()
     T = end - start
-    print "Time cost: " + str(T) + " seconds."
-    print "AP Rate: " + str(label)
-    print "Start WeightBased."
+    logging.info("Time cost: " + str(T) + " seconds.")
+    logging.info("AP Rate: " + str(label)
+    logging.info("Start WeightBased."
     start = time.clock()
     label, importance, iter = integrate1()
     end = time.clock()
     T = end - start
-    print "Time cost: " + str(T) + " seconds."
-    print "WeightBased Rate: " + str(label) + "\t" + str(iter)
-    print "Importance: " + str(importance)
-    #"""
-    print "Start RF."
+    logging.info("Time cost: " + str(T) + " seconds.")
+    logging.info("WeightBased Rate: " + str(label) + "\t" + str(iter)
+    logging.info("Importance: " + str(importance)
+    """
+    logging.info("Start RF.")
     start = time.clock()
     label, A = baseline1(cw, th, pc)
     end = time.clock()
     T = end - start
-    print "Time cost: " + str(T) + " seconds."
-    print "RF Rate: " + str(label) + "\n" + str(A)
-    print "Start ClusterBased."
+    logging.info("Time cost: " + str(T) + " seconds.")
+    logging.info("RF Rate: " + str(label) + "\n" + str(A))
+    logging.info("Start ClusterBased.")
     start = time.clock()
     with warnings.catch_warnings():
         warnings.simplefilter("error")
     label, A = integrate2(nc, cw, th, pc)
     end = time.clock()
     T = end - start
-    print "Time cost: " + str(T) + " seconds."
-    print "ClusterBased Rate:" + str(label) + "\n" + str(A)
+    logging.info("Time cost: " + str(T) + " seconds.")
+    logging.info("ClusterBased Rate:" + str(label) + "\n" + str(A))
     #"""
-    print "Succeed!"
+    logging.info("Succeed!")
