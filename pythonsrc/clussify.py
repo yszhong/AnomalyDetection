@@ -15,9 +15,11 @@ import time
 import warnings
 import sys
 import logging
+import os
 
 def afc(D):
-    af = cluster.AffinityPropagation()
+    af = cluster.AffinityPropagation(damping=0.9)
+    #af=cluster.KMeans(n_clusters=90)
     af.fit(D)
     label = af.labels_
     return label
@@ -28,7 +30,7 @@ def loadmetri():
     metri = []
     #f = open("../data/all-good-dip-newest.txt", "r")
     #f = open("../data/new-good.txt", "r")
-    f = open("../data/good-feature.txt", "r")
+    f = open("../data/good-feature-norm.txt", "r")
     for line in f:
         line = line.strip().split()
         pts.append(line[0])
@@ -36,7 +38,7 @@ def loadmetri():
         metri.append(line)
     #f = open("../data/all-bad-dip-newest.txt", "r")
     #f = open("../data/new-bad.txt", "r")
-    f = open("../data/bad-feature.txt", "r")
+    f = open("../data/bad-feature-norm.txt", "r")
     for line in f:
         line = line.strip().split()
         pts.append(line[0])
@@ -69,23 +71,25 @@ def validate(label, truth, M, cluster_width, threshold):
         if item not in cldict.keys():
             cldict[item] = [i]
         i += 1
+    flag = dict()
     for ks in cldict.keys():
-        flag = False
-        if len(cldict[ks]) <= cluster_width:
-            flag = True
         for thing in cldict[ks]:
+            flag[thing] = 0
+            #if len(cldict[ks]) <= cluster_width:
+                #flag[thing] = True
             if bidistance(thing, cldict[ks], M) > threshold:
-                flag = True
-            if flag:
-                if truth[thing]:
-                    result[0, 0] += 1
-                if not truth[thing]:
-                    result[0, 1] += 1
-            if not flag:
-                if truth[thing]:
-                    result[1, 0] += 1
-                if not truth[thing]:
-                    result[1, 1] += 1
+                flag[thing] = 1
+    for item in flag.keys():
+        if flag[item] is 1:
+            if truth[item] == 1:
+                result[0, 0] += 1
+            if truth[item] == 0:
+                result[0, 1] += 1
+        else:
+            if truth[item] == 1:
+                result[1, 0] += 1
+            if truth[item] == 0:
+                result[1, 1] += 1
     result = numpy.array(result)
     A = anomindexes(result)
     return result, A
@@ -98,7 +102,9 @@ def bidistance(item, group, matrix):
         m.append(matrix[thing])
     m = numpy.array(m)
     average = numpy.mean(m, axis = 0)
-    distance = numpy.linalg.norm(item - average)
+    rou1 = numpy.linalg.norm(item)
+    rou2 = numpy.linalg.norm(average)
+    distance = numpy.linalg.norm(item - average) / (rou1 * rou2)
     return distance
 
 def anomindexes(emat):
@@ -135,7 +141,7 @@ def integrate1():
     while rate > 0.01 and iter < 5:
         label = afc(N)
         importance = rfc(N, label)
-        M = N
+        #M = N
         N = []
         for item in M:
             outer = []
@@ -157,7 +163,7 @@ def integrate2(nc, cw, th, pc = 0.5):
     pd = []
     pdlabel = []
     randlist = random.sample(range(2427), 500)
-    randlist += random.sample(range(8074), 2000)
+    randlist += random.sample(range(2427, 10501, 1), 2000)
     for i in randlist:
         pd.append(M[i])
         if i < 2427:
@@ -167,7 +173,8 @@ def integrate2(nc, cw, th, pc = 0.5):
     M = numpy.delete(M, randlist, axis = 0)
     truth = numpy.delete(truth, randlist)
     pdlabel = numpy.array(pdlabel)
-    km = cluster.KMeans(n_clusters = nc)
+    #km = cluster.KMeans(n_clusters = nc)
+    km = cluster.AffinityPropagation(damping =  nc)
     km.fit(M)
     label = km.labels_
     kmdict = dict()
@@ -209,7 +216,7 @@ def baseline1(cw, th, pc = 0.5):
     pd = []
     pdlabel = []
     randlist = random.sample(range(2427), 500)
-    randlist += random.sample(range(8074), 2000)
+    randlist += random.sample(range(2427, 10501, 1), 2000)
     for i in randlist:
         pd.append(M[i])
         if i < 2427:
@@ -242,27 +249,31 @@ def baseline2():
 
 if __name__ == "__main__":
     print "Started."
+    logsize = os.path.getsize("../result/clussify.txt")
+    if logsize / 1024 / 1024 > 1:
+        os.remove("../result/clussify.txt")
     logging.basicConfig(level = logging.INFO, 
                         format = "$(asctime)s %(filename)s[line:%(lineno)d %(levelname)s %(message)s]",
                         datefmt = "%b %d %Y %H:%M:%S",
                         filename = "../result/clussify.txt",
-                        filemode = "w")
+                        filemode = "a")
     console = logging.StreamHandler()
     console.setLevel(logging.INFO)
     console.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
     logging.getLogger("").addHandler(console)
-    nc = 100
-    cw = 3
-    th = 1E-4
-    pc = 0.5
+    nc = 0.6
+    th = 7
+    pc = 0.9
+    cw = 10
     if len(sys.argv) > 1:
-        nc = int(sys.argv[1])
+        nc = float(sys.argv[1])
     if len(sys.argv) > 2:
-        cw = float(sys.argv[2])
+        th = float(sys.argv[2])
     if len(sys.argv) > 3:
-        th = float(sys.argv[3])
+        pc = float(sys.argv[3])
     if len(sys.argv) > 4:
-        pc = float(sys.argv[4])
+        cw = float(sys.argv[4])
+    logging.info("Parameters: " + str([nc,th,pc]))
     """
     logging.info("Start AP.")
     start = time.clock()
@@ -270,15 +281,15 @@ if __name__ == "__main__":
     end = time.clock()
     T = end - start
     logging.info("Time cost: " + str(T) + " seconds.")
-    logging.info("AP Rate: " + str(label)
-    logging.info("Start WeightBased."
+    logging.info("AP Rate: " + str(label))
+    logging.info("Start WeightBased.")
     start = time.clock()
     label, importance, iter = integrate1()
     end = time.clock()
     T = end - start
     logging.info("Time cost: " + str(T) + " seconds.")
-    logging.info("WeightBased Rate: " + str(label) + "\t" + str(iter)
-    logging.info("Importance: " + str(importance)
+    logging.info("WeightBased Rate: " + str(label) + "\t" + str(iter))
+    logging.info("Importance: " + str(importance))
     """
     logging.info("Start RF.")
     start = time.clock()
