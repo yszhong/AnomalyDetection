@@ -2,7 +2,7 @@
 """
 Created on Tue Sep 27 14:47:17 2016
 
-This program realizes an algorithm of anomaly detection. 
+This program `realizes an algorithm of anomaly detection. 
 
 @author: Yunsong Zhong
 """
@@ -13,6 +13,7 @@ import os
 import math
 import pandas
 import logging
+import datetime
 import pywt # need to install wavelet package from auto/pywavelets in anaconda
 
 def readfile():
@@ -127,18 +128,16 @@ def slidingpeak(winsize):
 	ts, ground = readfile()
 	partts = slidingwindow(ts, winsize)
 	lab = []
+	dl = []
 	for i in range(ts.shape[1] - winsize):
-		dl = waveletdetect(partts[i])
-		"""
-		if i == 0:
-			f=open("../result/tsequence1.txt","w")
-			for i in range(len(dl)):
-				f.write(str(dl[i])+"\n")
-			f.close()
-			print "done"
-		"""
-		dl = pauta(dl)
-		lab.append(dl)
+		tempdl =waveletdetect(partts[i]) 
+		dl.append(tempdl)
+	dl = numpy.array(dl)
+	dl = dl.transpose()
+	for i in range(ts.shape[0]):
+		newdl = dl[i]
+		newdl = pauta(newdl)
+		lab.append(newdl)
 	lab = numpy.array(lab)
 	label = numpy.zeros(ts.shape[0])
 	for i in range(lab.shape[1]):
@@ -174,9 +173,11 @@ def outputwindow(winsize):
 
 if __name__ == "__main__":
 	# cut log size
-	logsize = os.path.getsize("../result/slidingpeak.log")
-	if logsize / 1024 / 1024 > 2:
-		os.remove("../result/slidingpeak.log")
+	st = datetime.datetime.now()
+	if os.path.isfile("../result/slidingpeak.log"):
+		logsize = os.path.getsize("../result/slidingpeak.log")
+		if logsize / 1024 / 1024 > 2:
+			os.remove("../result/slidingpeak.log")
 	# set logging configure
 	FORMAT = "%(asctime)s %(filename)s line:%(lineno)d %(levelname)s\n %(message)s"
 	FNM = "../result/slidingpeak.log"
@@ -187,11 +188,16 @@ if __name__ == "__main__":
 	console.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
 	logging.getLogger("").addHandler(console)
 	# present algorithm
-	#logging.info("3 sigma principle, fft") # comment on log
+	linfo = "pauta principle, haar wavelet"
+	logging.info("Info: " + linfo) # comment on log
 	for winsize in [4]:
-		#logging.info("Window size: " + str(winsize))
+		logging.info("Window size: " + str(winsize))
 		eval = slidingpeak(winsize)
-		logging.info(str(eval)) # output accuracy matrix
+		print eval
+		logging.info("Confusion matrix: " + str(eval)) # output accuracy matrix
+	et = datetime.datetime.now()
+	runtime = (et - st).seconds
+	logging.info("Running time: " + str(runtime))
 	"""
 	eval = nowin()
 	logging.info(str(eval))
