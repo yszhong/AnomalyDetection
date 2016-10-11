@@ -2,7 +2,8 @@
 """
 Created on Tue Sep 27 14:47:17 2016
 
-This program `realizes an algorithm of anomaly detection. 
+This program realizes a batch of algorithms on time series anomaly detection. 
+Debugged in Anaconda with Python 2.7. 
 
 @author: Yunsong Zhong
 """
@@ -11,10 +12,10 @@ import numpy
 from sklearn import cluster
 import os
 import math
-import pandas
 import logging
 import datetime
 import pywt # need to install wavelet package from auto/pywavelets in anaconda
+import icss # in this directory
 
 def readfile():
 	# read anomaly groundtruth
@@ -107,6 +108,20 @@ def pauta(vec):
 			label[i] = 1
 	return label
 
+def ItCuSqSum(vec):
+	vec = numpy.array(vec)
+	vec = vec.tolist()
+	lab = 0
+	if len(vec) > 0:
+		pos = icss.ICSS(vec)
+		if len(pos) > 0:
+			lab = 1
+	label = numpy.zeros(len(vec))
+	for i in range(len(vec)):
+		if i in label:
+			label[i] = 1
+	return label
+
 def evaluate(label, ground):
 	eval = numpy.zeros((2, 2))
 	for i in range(len(ground)):
@@ -135,14 +150,15 @@ def slidingpeak(winsize):
 	dl = numpy.array(dl)
 	dl = dl.transpose()
 	for i in range(ts.shape[0]):
-		newdl = dl[i]
-		newdl = pauta(newdl)
+		newdl = dl[i].tolist()
+		newdl = ItCuSqSum(newdl)
 		lab.append(newdl)
 	lab = numpy.array(lab)
 	label = numpy.zeros(ts.shape[0])
+	lab = lab.transpose()
 	for i in range(lab.shape[1]):
 		temp = lab[:, [i]]
-		if numpy.count_nonzero(temp) >= winsize:
+		if numpy.count_nonzero(temp) >= 1:
 			label[i] = 1
 	eval = evaluate(label, ground)
 	return eval
@@ -188,12 +204,11 @@ if __name__ == "__main__":
 	console.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
 	logging.getLogger("").addHandler(console)
 	# present algorithm
-	linfo = "pauta principle, haar wavelet"
+	linfo = "icss principle, haar wavelet"
 	logging.info("Info: " + linfo) # comment on log
 	for winsize in [4]:
 		logging.info("Window size: " + str(winsize))
 		eval = slidingpeak(winsize)
-		print eval
 		logging.info("Confusion matrix: " + str(eval)) # output accuracy matrix
 	et = datetime.datetime.now()
 	runtime = (et - st).seconds
